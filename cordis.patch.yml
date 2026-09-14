@@ -1,0 +1,36 @@
+# dsh bundle patch —— 装好本包后，这一层会自动并入 profile 的层栈。
+#
+# 生效条件（两个都在本包里）：package.json 声明 "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }，
+# 且本文件存在。之后 `dsh plugin --profile web add dsh-weixin-channel` 会自动把包名追加进
+# profile 的 dsh.profile.bundles，**不需要手改 profile 的 cordis.patch.yml**。
+#
+# 平面判定：host 组合（不是 agent preset）。一个进程级长轮询连接，一个微信账号对应多个 DSH 会话；
+# 不发布任何 service（纯消费者 + 后台循环）⇒ 不需要 isolate realm，裸行即可。
+
+- insert:
+    - id: weixin-channel
+      name: 'dsh-weixin-channel'
+      config:
+        # 微信会话在哪个目录里干活。默认继承 DSH 进程的工作目录；
+        # 建议显式指定，例如：workspacePath: 'D:\deepwork\my-project'
+        workspacePath: !!js process.env.DSH_WEIXIN_WORKSPACE ?? process.cwd()
+
+        # 权限：**默认只读**。微信是外部输入源，确认可信后再放宽。
+        # 可选值：read-only | workspace-write | danger-full-access
+        permissionPreset: read-only
+        agentPreset: standard
+
+        # 白名单：形如 xxx@im.wechat 的微信 userId。
+        # 留空即可 —— 扫码登录（dsh-weixin-login）会把扫码者写进状态目录的白名单。
+        # 想额外加人再填这里；**不要**写成通配。
+        allowFrom: []
+
+        # 指定账号；留空则由状态目录里已登录的账号决定。
+        accountId: ''
+
+        # 出站行为
+        maxReplyChars: 4000
+        replyProgress: true
+
+        # 长轮询（服务端可下发覆盖）
+        longPollTimeoutMs: 35000

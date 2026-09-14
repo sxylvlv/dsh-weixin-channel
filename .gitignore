@@ -1,0 +1,19 @@
+# 依赖与产物
+node_modules/
+*.tgz
+dist/
+
+# 本机运行痕迹
+.verify/
+*.log
+restart-status.json
+restart.log
+dsh-web.out.log
+dsh-web.err.log
+mount-status.json
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

@@ -1,0 +1,69 @@
+{
+  "name": "dsh-weixin-channel",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "微信（腾讯 ilink bot）通道插件 for DSH：把微信消息接成 DSH 会话，文本/图片/文件/语音/视频双向，出站可推文档。移植自 @tencent-weixin/openclaw-weixin。",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "dsh-bundle",
+    "weixin",
+    "wechat",
+    "ilink",
+    "clawbot",
+    "channel"
+  ],
+  "license": "MIT",
+  "author": "sxylvlv",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sxylvlv/dsh-weixin-channel.git"
+  },
+  "homepage": "https://github.com/sxylvlv/dsh-weixin-channel#readme",
+  "bugs": {
+    "url": "https://github.com/sxylvlv/dsh-weixin-channel/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "dsh-weixin-login": "bin/weixin-login.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "index.mjs",
+    "cordis.patch.yml",
+    "cordis.patch.snippet.yml",
+    "lib",
+    "bin",
+    "tools/*.ps1",
+    "docs/功能说明.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "login": "node bin/weixin-login.mjs",
+    "deploy": "node tools/deploy.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}

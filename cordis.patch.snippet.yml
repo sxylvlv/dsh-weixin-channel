@@ -1,0 +1,33 @@
+# 追加到 $DSH_HOME/profiles/web/cordis.patch.yml
+#
+# 平面判定：host 组合（不是 agent preset）。
+# 理由：一个进程级长轮询连接；一个微信账号对应多个 DSH 会话，跨会话共享。
+# 本行不发布任何 service（纯消费者 + 后台循环）⇒ 不需要 isolate realm，裸行即可。
+#
+# 安装：把 dsh-weixin-channel/ 整个目录放到 $DSH_HOME/profiles/web/ 旁边，
+#       使其与 cordis.patch.yml 同级，然后追加下列行。
+# 若放进别处，name 需要写成相对 cordis.patch.yml 的路径（或绝对路径，未实测）。
+
+- insert:
+    - id: weixin-channel
+      name: './dsh-weixin-channel/index.mjs'
+      config:
+        # 工作区：微信会话在哪个目录里跑
+        workspacePath: !!js process.env.DSH_WEIXIN_WORKSPACE ?? process.cwd()
+
+        # 权限：默认给只读，确认可信后再放宽
+        agentPreset: standard
+        permissionPreset: read-only
+
+        # 白名单：微信 userId（形如 xxx@im.wechat），空数组 = 拒绝一切（fail closed）
+        allowFrom: !!js (process.env.DSH_WEIXIN_ALLOW_FROM ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+
+        # 指定账号；留空则由状态目录里的唯一账号决定
+        accountId: !!js process.env.DSH_WEIXIN_ACCOUNT ?? ''
+
+        # 出站行为
+        maxReplyChars: 4000
+        replyProgress: true
+
+        # 长轮询
+        longPollTimeoutMs: 35000
