@@ -20,8 +20,6 @@ function Get-FfmpegPath([string]$explicit) {
   $cmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
   if ($cmd) { return $cmd.Source }
   foreach ($root in @(
-      'D:\deepwork\手机端\bin',
-      'D:\deepwork\bin',
       (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links'),
       (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages'),
       'C:\ffmpeg\bin',
@@ -67,7 +65,7 @@ function Get-VideoDuration([string]$ffprobePath, [string]$path) {
 
   The command is handed to cmd /c inline so that PowerShell does the Unicode handling:
   write the same line to a .bat with Set-Content -Encoding ASCII and a Chinese directory
-  name such as D:\deepwork\手机端 becomes "???" and cmd cannot find ffmpeg.
+  name such as a non-ASCII directory becomes "???" and cmd cannot find ffmpeg.
 #>
 function Invoke-FfmpegLine([string]$ffmpegPath, [string[]]$ffArgs, [string]$stderrFile, [string]$stdoutFile) {
   $quoted = $ffArgs | ForEach-Object {
