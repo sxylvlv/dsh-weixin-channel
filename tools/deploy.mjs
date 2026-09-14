@@ -36,7 +36,10 @@ const DEPLOY_FILES = ['index.mjs', 'package.json',
   // 运行时要用 tools/ 下的这几个脚本（video-frame.mjs 通过路径调用它们），
   // 所以它们也必须进哈希：只改 .ps1 而不改 .mjs 时同样需要触发重载。
   'tools/ffmpeg-common.ps1', 'tools/ffmpeg-frames.ps1', 'tools/ffmpeg-scene.ps1',
-  'tools/mf-frames.ps1', 'tools/shell-frame.ps1']
+  'tools/mf-frames.ps1', 'tools/shell-frame.ps1',
+  // 看门狗：index.mjs 运行时要 spawn 它，必须随包部署，也必须进哈希
+  // （否则只改看门狗不会触发重新部署，改动静默不生效）。
+  'tools/watchdog.mjs']
 
 function hashSources() {
   const h = crypto.createHash('sha256')

@@ -48,6 +48,7 @@
     "lib",
     "bin",
     "tools/*.ps1",
+    "tools/watchdog.mjs",
     "docs/功能说明.md",
     "README.md",
     "LICENSE"

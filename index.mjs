@@ -9,9 +9,12 @@
  *       并在该 patch 里追加一行。
  */
 
+import { randomUUID } from 'node:crypto'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import z from '@deepseek-ai/schemastery'
 
@@ -24,7 +27,7 @@ import { DEFAULT_APP_ID, DEFAULT_BOT_AGENT } from './lib/ilink.mjs'
 export const name = 'dsh-weixin-channel'
 
 /** 构建标记：写进 mount-status.json，用于判断热重组时模块是否被重新导入。 */
-export const BUILD = 'r26'
+export const BUILD = 'r27'
 
 /** 硬依赖：会话创建与驱动所必需的服务。 */
 export const inject = ['agents', 'agentPresets', 'workspaceRegistry', 'sessionTitle', 'agentDefaultModel']
@@ -36,6 +39,12 @@ export const Config = z.object({
   allowFrom: z.array(z.string()).default([]),
   /** 未授权时允许发送 /pair 自助加入白名单（仅建议内网/自用开启）。 */
   autoPair: z.boolean().default(false),
+  /**
+   * 自愈看门狗开关（默认开）。它会在通道静默失效（热重组把行弄丢、
+   * 进程被杀等）时自动重挂。禁用：把它设为 false，或在状态目录放一个
+   * `watchdog.off` 文件。日志见 channel.log 里 `[watchdog]` 开头的行。
+   */
+  watchdog: z.boolean().default(true),
   /** 指定账号 id；留空时取状态目录里第一个已登录账号。 */
   accountId: z.string().default(''),
   /** agent preset 名。 */
@@ -92,14 +101,49 @@ function dshHome() {
   return process.env.DSH_HOME?.trim() || path.join(os.homedir(), '.dsh')
 }
 
+/** 状态文件路径（挂载探针 + 看门狗都读它）。 */
+function mountStatusPath() {
+  return path.join(dshHome(), 'weixin', 'mount-status.json')
+}
+
 /** 挂载探针：写一行状态文件，便于不依赖服务端日志判断插件是否真的装上。 */
 function writeMountStatus(payload) {
   try {
     const dir = path.join(dshHome(), 'weixin')
     fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(path.join(dir, 'mount-status.json'), JSON.stringify(payload, null, 2), 'utf-8')
+    fs.writeFileSync(mountStatusPath(), JSON.stringify(payload, null, 2), 'utf-8')
   } catch {
     // 探针失败不影响功能
+  }
+}
+
+function readMountStatus() {
+  try {
+    return JSON.parse(fs.readFileSync(mountStatusPath(), 'utf-8'))
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * 自愈看门狗：**独立子进程**，随通道挂载时拉起一次（进程内单例，靠 pidfile 去重）。
+ *
+ * 为什么必须有它：实测过一次「通道静默失效」——热重组把行拆掉后没插回来，
+ * `mount-status` 停在 stopped，微信侧毫无反应，而插件自身的代码已经不运行了，
+ * **它不可能自救**。所以只能由一个不随插件卸载而退出的进程定期检查并重挂。
+ */
+function spawnWatchdog(logger) {
+  try {
+    const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tools', 'watchdog.mjs')
+    if (!fs.existsSync(script)) {
+      logger.warn?.(`[weixin] 看门狗脚本不存在，跳过: ${script}`)
+      return
+    }
+    const child = spawn(process.execPath, [script], { detached: true, stdio: 'ignore', windowsHide: true })
+    child.unref()
+    logger.info?.(`[weixin] 看门狗已拉起 pid=${child.pid}`)
+  } catch (error) {
+    logger.warn?.(`[weixin] 看门狗拉起失败（不影响通道）: ${String(error)}`)
   }
 }
 
@@ -144,24 +188,46 @@ export function apply(ctx, config) {
 
       started = true
       controller = new AbortController()
+      const runId = randomUUID()
       const bridge = createBridge({ ctx, config, store, account, log: logger })
 
+      // 终态写入必须"认领"：只有当前这次挂载写的 running 还留在文件里时才允许改写。
+      // 起因（2026-09-14 实测）：重挂瞬间旧实例异步写 stopped，把新实例的 running 覆盖掉，
+      // 于是"通道明明在跑、状态却是 stopped" —— 排障时据此误判过一次。
+      const writeIfCurrent = (payload, what) => {
+        const current = readMountStatus()
+        if (current?.runId !== runId) {
+          logger.info?.(`[weixin] 忽略过期的 ${what} 写入（当前 runId=${current?.runId ?? '(无)'}）`)
+          return
+        }
+        writeMountStatus(payload)
+      }
+
       startMonitor({ config, store, account, bridge, log: logger, signal: controller.signal })
-        .then(() => writeMountStatus({ stage: 'stopped', at: new Date().toISOString(), accountId: account.accountId }))
+        .then(() => writeIfCurrent({
+          stage: 'stopped', at: new Date().toISOString(), accountId: account.accountId, runId,
+        }, 'stopped'))
         .catch((error) => {
           logger.error?.(`[weixin] 长轮询意外退出: ${String(error)}`)
-          writeMountStatus({ stage: 'crashed', at: new Date().toISOString(), reason: String(error) })
+          writeIfCurrent({
+            stage: 'crashed', at: new Date().toISOString(), accountId: account.accountId, runId, reason: String(error),
+          }, 'crashed')
         })
 
       logger.info?.(`[weixin] 通道已启动 account=${account.accountId} baseUrl=${account.baseUrl}`)
       writeMountStatus({
         stage: 'running',
         at: new Date().toISOString(),
+        runId,
+        pid: process.pid,
         build: BUILD,
         accountId: account.accountId,
         baseUrl: account.baseUrl,
         appId: config.appId,
       })
+
+      // 看门狗：插件自己不可能自救（代码已随 fiber 卸载而停跑），交给独立进程。
+      if (config.watchdog !== false) spawnWatchdog(logger)
     }
 
     attempt()

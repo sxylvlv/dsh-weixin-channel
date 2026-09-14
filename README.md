@@ -81,6 +81,7 @@ dsh web
 | `replyProgress` | `true` | 先回执「收到，正在处理…」 |
 | `longPollTimeoutMs` | `35000` | 服务端可下发覆盖 |
 | `ensureSessionVisible` | `true` | 保证通道会话不被浏览器侧的「归档」隐藏 |
+| `watchdog` | `true` | 自愈看门狗：通道静默失效（热重组把行弄丢、进程被杀）时自动重挂。日志见 `channel.log` 的 `[watchdog]` 行；禁用 = 设为 `false` 或在状态目录放 `watchdog.off` |
 | `extractVideoFrame` / `videoFrameCount` / `videoSceneExtra` | `true` / `3` / `2` | 视频抽帧（默认只在你说「分析视频」时触发） |
 | `staleTokenMs` / `minSendIntervalMs` / `maxConsecutiveSendFailures` / `sendCooldownMs` | `600000` / `1500` / `3` / `300000` | 出站守卫：令牌过期阈值、最小发送间隔、断路器阈值与冷却 |
 
@@ -125,7 +126,7 @@ DSH 侧要主动发文件时，在回复里**单独占一行**写 `MEDIA:<绝对
 - **主动发视频未接入**（微信发来的视频可以存/分析）。
 - **语音没有本地转写**：服务端不给转写时只能存下 SILK 音频，模型无法直接听。
 - **视频历史只在内存**：插件重启后 `/分析` 找不到上一条，视频文件本身仍在磁盘。
-- **热重组的已知失效模式**：profile patch 被重写时，偶发"旧行拆掉、新行插不回来"，通道静默失效。此时重装一次（`dsh plugin --profile web remove/add`，或改内容重新部署）即可恢复。
+- **热重组的失效模式已被看门狗兜住**：profile patch 被重写时偶发"旧行拆掉、新行插不回来"，通道会静默失效。默认开启的看门狗（独立进程，随通道挂载拉起）会在约 60 秒内判定并**换新 id 重挂**。想关掉见配置表的 `watchdog`。
 - 只做**单聊**，未接群聊。
 
 排障先看 `$DSH_HOME/weixin/channel.log`（收发每一步都留痕），再看 `$DSH_HOME/weixin/mount-status.json`（插件挂载状态）。
