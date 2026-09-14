@@ -33,6 +33,10 @@ const patchPath = path.join(profileDir, 'cordis.patch.yml')
 const DEPLOY_FILES = ['index.mjs', 'package.json',
   'lib/store.mjs', 'lib/ilink.mjs', 'lib/login.mjs', 'lib/monitor.mjs', 'lib/message.mjs',
   'lib/bridge.mjs', 'lib/media.mjs', 'lib/video-frame.mjs', 'lib/outbound.mjs', 'lib/log.mjs',
+  'lib/ui-server.mjs',
+  // 面板的客户端模块与扫码登录脚本：运行时都要用（路由与子进程），必须随包部署
+  'client/client.js',
+  'bin/weixin-login.mjs',
   // 运行时要用 tools/ 下的这几个脚本（video-frame.mjs 通过路径调用它们），
   // 所以它们也必须进哈希：只改 .ps1 而不改 .mjs 时同样需要触发重载。
   'tools/ffmpeg-common.ps1', 'tools/ffmpeg-frames.ps1', 'tools/ffmpeg-scene.ps1',
@@ -75,7 +79,8 @@ if (fs.existsSync(path.join(deployDir, 'index.mjs'))) {
   // 部署目录只保留运行时需要的部分。
   // ⚠️ **tools/ 不能整个删**：lib/video-frame.mjs 运行时要用 tools/shell-frame.ps1，
   //    这里只剔除运行时不用的东西（保证 shell-frame.ps1 会被带过去）。
-  for (const junk of ['docs', 'bin', 'node_modules', 'restart-watchdog.ps1', 'cordis.patch.snippet.yml',
+  // ⚠️ `bin/` 不能删：面板要 spawn bin/weixin-login.mjs 来做扫码登录。
+  for (const junk of ['docs', 'node_modules', 'restart-watchdog.ps1', 'cordis.patch.snippet.yml',
     'README.md', 'package-lock.json', 'restart.log', 'restart-status.json', 'dsh-web.out.log', 'dsh-web.err.log']) {
     fs.rmSync(path.join(deployDir, junk), { recursive: true, force: true })
   }

@@ -30,6 +30,7 @@
   "main": "index.mjs",
   "exports": {
     ".": "./index.mjs",
+    "./client": "./client/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -39,6 +40,10 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web"
     }
   },
   "files": [
@@ -47,6 +52,7 @@
     "cordis.patch.snippet.yml",
     "lib",
     "bin",
+    "client",
     "tools/*.ps1",
     "tools/watchdog.mjs",
     "docs/功能说明.md",

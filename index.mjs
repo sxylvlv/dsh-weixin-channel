@@ -22,12 +22,13 @@ import { createStore } from './lib/store.mjs'
 import { createBridge } from './lib/bridge.mjs'
 import { startMonitor } from './lib/monitor.mjs'
 import { makeLog } from './lib/log.mjs'
+import { createUiServer } from './lib/ui-server.mjs'
 import { DEFAULT_APP_ID, DEFAULT_BOT_AGENT } from './lib/ilink.mjs'
 
 export const name = 'dsh-weixin-channel'
 
 /** 构建标记：写进 mount-status.json，用于判断热重组时模块是否被重新导入。 */
-export const BUILD = 'r27'
+export const BUILD = 'r28'
 
 /** 硬依赖：会话创建与驱动所必需的服务。 */
 export const inject = ['agents', 'agentPresets', 'workspaceRegistry', 'sessionTitle', 'agentDefaultModel']
@@ -45,6 +46,18 @@ export const Config = z.object({
    * `watchdog.off` 文件。日志见 channel.log 里 `[watchdog]` 开头的行。
    */
   watchdog: z.boolean().default(true),
+  /**
+   * 是否注册「微信通道」面板的数据接口（设置 → 微信通道）。
+   * 关掉只是没有面板，不影响通道本身。
+   */
+  ui: z.boolean().default(true),
+  /**
+   * 扫码登录脚本的绝对路径。留空 = 用插件自带的 `bin/weixin-login.mjs`。
+   * 本机是「内容哈希目录部署」，部署目录里没有 node_modules，
+   * 而登录脚本要 `qrcode` 生成二维码图片，所以这里指回带依赖的源码目录。
+   * 通过 npm 安装给别人用时留空即可（那时插件目录下就有 node_modules）。
+   */
+  loginScript: z.string().default(''),
   /** 指定账号 id；留空时取状态目录里第一个已登录账号。 */
   accountId: z.string().default(''),
   /** agent preset 名。 */
@@ -174,6 +187,8 @@ export function apply(ctx, config) {
   ctx.effect(() => {
     let controller
     let started = false
+    /** 面板路由的卸载函数（随插件卸载一起摘掉）。 */
+    let stopUi = null
 
     const attempt = () => {
       if (started) return
@@ -228,6 +243,21 @@ export function apply(ctx, config) {
 
       // 看门狗：插件自己不可能自救（代码已随 fiber 卸载而停跑），交给独立进程。
       if (config.watchdog !== false) spawnWatchdog(logger)
+
+      // 可视化面板的数据接口：注册成 DSH 本机路由，客户端用同源 fetch 读。
+      if (config.ui !== false) {
+        try {
+          stopUi = createUiServer({
+            ctx,
+            config,
+            store,
+            log: logger,
+            pluginRoot: path.dirname(fileURLToPath(import.meta.url)),
+          })
+        } catch (error) {
+          logger.warn?.(`[ui] 面板数据接口注册失败（不影响通道）: ${String(error)}`)
+        }
+      }
     }
 
     attempt()
@@ -239,6 +269,11 @@ export function apply(ctx, config) {
 
     return () => {
       clearInterval(timer)
+      try {
+        stopUi?.()
+      } catch {
+        // 面板路由卸载失败不影响通道停止
+      }
       controller?.abort()
       logger.info?.('[weixin] 通道正在停止…')
     }
