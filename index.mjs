@@ -28,7 +28,7 @@ import { DEFAULT_APP_ID, DEFAULT_BOT_AGENT } from './lib/ilink.mjs'
 export const name = 'dsh-weixin-channel'
 
 /** 构建标记：写进 mount-status.json，用于判断热重组时模块是否被重新导入。 */
-export const BUILD = 'r28'
+export const BUILD = 'r29'
 
 /** 硬依赖：会话创建与驱动所必需的服务。 */
 export const inject = ['agents', 'agentPresets', 'workspaceRegistry', 'sessionTitle', 'agentDefaultModel']
